@@ -1,0 +1,64 @@
+name: Build Thaw for issue 1658
+
+on:
+  push:
+    branches: [build/1658-always-hidden]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Check out Thaw
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          if [[ -d /Applications/Xcode_26.6.app/Contents/Developer ]]; then
+            sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
+          fi
+          xcodebuild -version
+
+      - name: Test the layout editor regression
+        run: |
+          set -euo pipefail
+          xcodebuild test \
+            -project Thaw.xcodeproj \
+            -scheme Thaw \
+            -destination 'platform=macOS' \
+            -derivedDataPath Build \
+            -only-testing:ThawTests/EmptySectionEditorDragTests \
+            CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+      - name: Build and package Thaw
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project Thaw.xcodeproj \
+            -scheme Thaw \
+            -configuration Release \
+            -destination 'platform=macOS,arch=arm64' \
+            -derivedDataPath Build \
+            CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+          app=Build/Build/Products/Release/Thaw.app
+          test -x "$app/Contents/MacOS/Thaw"
+          test -d "$app/Contents/XPCServices"
+          lipo -verify_arch arm64 "$app/Contents/MacOS/Thaw"
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict "$app"
+          ditto -c -k --sequesterRsrc --keepParent "$app" "$RUNNER_TEMP/Thaw-1658.zip"
+
+      - name: Upload the app ZIP
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: Thaw-1658
+          path: ${{ runner.temp }}/Thaw-1658.zip
+          if-no-files-found: error
+          retention-days: 7

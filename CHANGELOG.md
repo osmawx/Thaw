@@ -27,6 +27,7 @@ the items under New and Fixed.
 ### Fixed
 
 - **A Thaw Bar with its own tint no longer hides its items.** The tint now colors the bar behind the items, so even a fully opaque one leaves them visible.
+- **Dragging an icon into an empty Always Hidden section works when its divider is concealed.** The Layout editor reveals the divider before moving the icon.
 
 ## [2.2.0-beta.2] - 2026-11-05
 

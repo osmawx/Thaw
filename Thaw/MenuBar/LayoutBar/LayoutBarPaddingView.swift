@@ -464,12 +464,18 @@ final class LayoutBarPaddingView: NSView {
             let targetItem = destination.targetItem
             if targetItem.isControlItem {
                 let screenFrames = NSScreen.screens.map { CGDisplayBounds($0.displayID) }
+                let requiresVisibility = targetItem.tag == .alwaysHiddenControlItem
+                    && appState.itemManager.itemCache[.alwaysHidden].isEmpty
                 // Frozen bounds predate the drag, so ask the window server.
-                // No answer counts as unreachable.
                 let targetBounds = Bridging.getWindowBounds(for: targetItem.windowID)
-                let isReachable = targetBounds.map {
-                    LayoutSolver.isOnScreen(bounds: $0, screenFrames: screenFrames)
-                } ?? false
+                let isOnScreen = requiresVisibility
+                    && WindowInfo(windowID: targetItem.windowID)?.isOnScreen == true
+                let isReachable = Self.isEditorDropDividerReachable(
+                    bounds: targetBounds,
+                    isOnScreen: isOnScreen,
+                    requiresVisibility: requiresVisibility,
+                    screenFrames: screenFrames
+                )
                 if !isReachable {
                     if let (sections, freshDivider) = await revealEmptySectionDivider(
                         for: targetItem,
@@ -1000,6 +1006,17 @@ final class LayoutBarPaddingView: NSView {
         }
     }
 
+    /// A concealed Always Hidden divider can report on-display bounds before it is visible.
+    static nonisolated func isEditorDropDividerReachable(
+        bounds: CGRect?,
+        isOnScreen: Bool,
+        requiresVisibility: Bool,
+        screenFrames: [CGRect]
+    ) -> Bool {
+        guard let bounds, !requiresVisibility || isOnScreen else { return false }
+        return LayoutSolver.isOnScreen(bounds: bounds, screenFrames: screenFrames)
+    }
+
     /// Whether an editor drag onto a parked divider should reveal the
     /// destination section instead of refusing (#988).
     ///
@@ -1103,8 +1120,12 @@ final class LayoutBarPaddingView: NSView {
             }
             let items = await MenuBarItem.getMenuBarItems(option: .activeSpace)
             if let fresh = items.first(matching: divider.tag),
-               let bounds = Bridging.getWindowBounds(for: fresh.windowID),
-               LayoutSolver.isOnScreen(bounds: bounds, screenFrames: screenFrames)
+               Self.isEditorDropDividerReachable(
+                   bounds: Bridging.getWindowBounds(for: fresh.windowID),
+                   isOnScreen: fresh.isOnScreen,
+                   requiresVisibility: sectionName == .alwaysHidden,
+                   screenFrames: screenFrames
+               )
             {
                 return (sections, fresh)
             }
