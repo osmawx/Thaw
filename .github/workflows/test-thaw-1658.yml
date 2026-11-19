@@ -1,0 +1,35 @@
+name: Verify Thaw issue 1658
+
+on:
+  push:
+    branches: [ci/1658-xcode-checks]
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: macos-26
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Build and run layout regression tests
+        env:
+          DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcodebuild build-for-testing -quiet -project Thaw.xcodeproj -scheme Thaw \
+            -destination 'platform=macOS,arch=arm64' -derivedDataPath Build \
+            CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+          codesign --force --deep --sign - Build/Build/Products/Debug/Thaw.app
+          result="$RUNNER_TEMP/ThawLayoutTests.xcresult"
+          xcodebuild test-without-building -quiet -project Thaw.xcodeproj -scheme Thaw \
+            -destination 'platform=macOS,arch=arm64' -derivedDataPath Build \
+            -parallel-testing-enabled NO -resultBundlePath "$result" \
+            -only-testing:ThawTests/EmptySectionEditorDragTests \
+            -only-testing:ThawTests/ControlItemRecoveryTests \
+            CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+          xcrun xcresulttool get test-results summary --path "$result" --compact
