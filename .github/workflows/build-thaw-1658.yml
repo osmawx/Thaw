@@ -2,7 +2,7 @@ name: Build Thaw for issue 1658
 
 on:
   push:
-    branches: [build/1658-zip]
+    branches: [build/1658-debug-zip]
 
 permissions:
   contents: read
@@ -31,12 +31,12 @@ jobs:
           xcodebuild build \
             -project Thaw.xcodeproj \
             -scheme Thaw \
-            -configuration Release \
+            -configuration Debug \
             -destination 'generic/platform=macOS' \
             -derivedDataPath Build \
             ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
-          app=Build/Build/Products/Release/Thaw.app
+          app=Build/Build/Products/Debug/Thaw.app
           test -x "$app/Contents/MacOS/Thaw"
           test -d "$app/Contents/XPCServices"
           lipo -verify_arch arm64 "$app/Contents/MacOS/Thaw"
