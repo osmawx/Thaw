@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   regression:
-    runs-on: macos-26
+    runs-on: macos-26-intel
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -22,12 +22,31 @@ jobs:
           set -euo pipefail
           xcodebuild -version
           xcodebuild build-for-testing -quiet -project Thaw.xcodeproj -scheme Thaw \
-            -destination 'platform=macOS,arch=arm64' -derivedDataPath Build \
+            -destination 'platform=macOS,arch=x86_64' -derivedDataPath Build \
             CODE_SIGN_IDENTITY= CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
           codesign --force --deep --sign - Build/Build/Products/Debug/Thaw.app
+          test_plan="$(find Build/Build/Products -maxdepth 1 -name '*.xctestrun' -print -quit)"
+          test -f "$test_plan"
+          python3 - "$test_plan" <<'PYTHON'
+          import plistlib
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          plan = plistlib.loads(path.read_bytes())
+          configurations = plan.get("TestConfigurations", [])
+          targets = [target for configuration in configurations for target in configuration["TestTargets"]]
+          if not configurations:
+              targets = [target for target in plan.values() if isinstance(target, dict)]
+          hosts = [target for target in targets if target.get("TestHostPath")]
+          assert hosts, "No test host in the generated test plan"
+          for host in hosts:
+              host.setdefault("EnvironmentVariables", {})["XCODE_RUNNING_FOR_PREVIEWS"] = "1"
+          path.write_bytes(plistlib.dumps(plan))
+          PYTHON
           result="$RUNNER_TEMP/ThawLayoutTests.xcresult"
-          xcodebuild test-without-building -quiet -project Thaw.xcodeproj -scheme Thaw \
-            -destination 'platform=macOS,arch=arm64' -derivedDataPath Build \
+          xcodebuild test-without-building -quiet -xctestrun "$test_plan" \
+            -destination 'platform=macOS,arch=x86_64' \
             -parallel-testing-enabled NO -resultBundlePath "$result" \
             -only-testing:ThawTests/EmptySectionEditorDragTests \
             -only-testing:ThawTests/ControlItemRecoveryTests \
