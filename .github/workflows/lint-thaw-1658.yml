@@ -1,0 +1,25 @@
+name: Verify SwiftLint for Thaw issue 1658
+
+on:
+  push:
+    branches: [ci/1658-swiftlint-check]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Run strict SwiftLint
+        run: |
+          set -euo pipefail
+          scripts/generate-swiftlint-inputs.sh "$RUNNER_TEMP/swiftlint-inputs.xcfilelist"
+          diff -u scripts/swiftlint-inputs.xcfilelist "$RUNNER_TEMP/swiftlint-inputs.xcfilelist"
+          docker run --rm -v "$PWD:/work" -w /work \
+            ghcr.io/realm/swiftlint:0.63.3@sha256:b70b763c949399cc3e4fdcfbc7588944d9503d498b6d96e853dfa07a944256e6 \
+            swiftlint --strict
