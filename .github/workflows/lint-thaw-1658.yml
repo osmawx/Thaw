@@ -14,6 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          ref: 'ada3344f256fe2e0b6fa8974106c6b562e2a8511'
           persist-credentials: false
       - name: Run strict SwiftLint
         run: |
